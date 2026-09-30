@@ -1,0 +1,25 @@
+{
+  "options": {
+    "folderStrategy": "Paths",
+    "requestNameSource": "Fallback",
+    "parametersResolution": "Example",
+    "alwaysInheritAuthentication": false,
+    "schemaFaker": true,
+    "enableOptionalParameters": true,
+    "includeDeprecated": true,
+    "includeWebhooks": false,
+    "indentCharacter": "Space",
+    "stackLimit": 20,
+    "optimizeConversion": false
+  },
+  "postProcess": {
+    "collectionName": "Mangools API",
+    "collectionId": "b8d7f6a1-4c2e-5f3b-9a07-6e1d2c4b8f50",
+    "baseUrlVariable": "base_url",
+    "apiKeyVariable": "api_key",
+    "apiKeyHeader": "x-access-token",
+    "fakerSeed": 20260831,
+    "fakedDateTime": "2026-01-01T00:00:00.000Z",
+    "fakedDate": "2026-01-01"
+  }
+}

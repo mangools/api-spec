@@ -1,0 +1,43 @@
+name: spec-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22.22.2'
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint:redocly
+      - run: npm run lint:spectral
+
+  postman:
+    name: the Postman collection builds and validates
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: postman/package-lock.json
+      # The Postman toolchain keeps its own node_modules: hoisting ajv to the root
+      # breaks spectral's bundled copy, so the two never share a tree.
+      - run: npm ci --prefix postman
+      - run: npm --prefix postman run build
+      - run: npm --prefix postman run smoke
+      - run: npm --prefix postman run upload -- --dry-run
