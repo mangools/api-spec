@@ -1,0 +1,24 @@
+{
+  "name": "@mangools/api-spec",
+  "description": "The OpenAPI 3.0 description of the Mangools API, mirrored from the live API.",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mangools/api-spec.git"
+  },
+  "scripts": {
+    "lint": "npm run lint:redocly && npm run lint:spectral",
+    "lint:redocly": "redocly lint openapi.json --format=stylish",
+    "lint:spectral": "spectral lint openapi.json --ruleset .spectral.yaml --fail-severity=warn",
+    "generate": "./scripts/generate.sh",
+    "mirror:status": "./scripts/mirror-status.sh",
+    "postman:build": "npm --prefix postman run build",
+    "postman:smoke": "npm --prefix postman run smoke",
+    "postman:dry-run": "npm --prefix postman run build && npm --prefix postman run upload -- --dry-run"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.47.0",
+    "@stoplight/spectral-cli": "6.16.3"
+  }
+}

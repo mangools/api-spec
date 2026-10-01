@@ -1,0 +1,22 @@
+{
+  "name": "mangools-postman-collection",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Builds the Mangools API Postman collection from the repository's openapi.json.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "generate": "node scripts/generate.js",
+    "validate": "node scripts/validate.js",
+    "smoke": "bash scripts/newman-smoke.sh",
+    "build": "npm run generate && npm run validate",
+    "upload": "node scripts/upload.js"
+  },
+  "devDependencies": {
+    "ajv": "8.17.1",
+    "ajv-draft-04": "1.0.0",
+    "ajv-formats": "3.0.1",
+    "newman": "6.2.2",
+    "openapi-to-postmanv2": "6.3.3",
+    "postman-collection": "5.0.2"
+  }
+}
