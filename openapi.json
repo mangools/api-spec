@@ -1749,12 +1749,12 @@
         ],
         "operationId": "get-serpchecker-serps-by-serp-id-snapshot",
         "summary": "Get a SERP snapshot image",
-        "description": "### Prerequisites\nThis endpoint requires a prior call to `/serpchecker/serps` for the same query. Pass the `serp_snapshot_id` from that response, **not** the bare `_id`: the snapshot is stored under a key of the form `<id>.<YYYY-MM-DD>` (with `.100` appended for a hundred-result SERP), and that whole key is what this path segment takes. A bare `_id` finds the lookup but not the stored page, and the endpoint answers HTTP 404 `SERP snapshot not found`. A query that was never looked up answers HTTP 404 `Serp not found`.",
+        "description": "### Prerequisites\nThis endpoint requires a prior call to `/serpchecker/serps` for the same query. Pass the `serp_snapshot_id` from that response as returned, **not** the bare `_id`: the snapshot is stored under a key of the form `<md5>.<YYYY-MM-DD>[.100][.sch]` (`.100` for a hundred-result SERP, `.sch` for a page SERPChecker or KWFinder stored from 2026-10-02), and that whole key is what this path segment takes. A null `serp_snapshot_id` means no page was stored for that response, so it has no snapshot. A bare `_id` finds the lookup but not the stored page, and the endpoint answers HTTP 404 `SERP snapshot not found`. A query that was never looked up answers HTTP 404 `Serp not found`.",
         "parameters": [
           {
             "name": "serp_id",
             "in": "path",
-            "description": "The `serp_snapshot_id` returned by `/serpchecker/serps` — the storage key `<id>.<YYYY-MM-DD>[.100]`, not the bare serp `_id`.",
+            "description": "The `serp_snapshot_id` returned by `/serpchecker/serps`, passed as returned — the storage key `<md5>.<YYYY-MM-DD>[.100][.sch]`, not the bare serp `_id`. A null `serp_snapshot_id` has no snapshot.",
             "required": true,
             "schema": {
               "type": "string"
@@ -4483,7 +4483,7 @@
                   },
                   "language_id": {
                     "type": "number",
-                    "description": "Language ID for localization (optional)"
+                    "description": "Language ID for localization (optional). When it is missing, 0 or not a known language, the monitor gets the location's default language from DataForSEO Labs, or English when Labs has none we list."
                   }
                 }
               }
@@ -7088,12 +7088,15 @@
           },
           "serp_snapshot_id": {
             "type": "string",
-            "example": "58dc27755a3518edf5bb650abadf22d1.2021-03-31"
+            "nullable": true,
+            "example": "58dc27755a3518edf5bb650abadf22d1.2021-03-31",
+            "description": "Key of the stored copy of the result page, `<md5>.<YYYY-MM-DD>[.100][.sch]`, where `<md5>` is the `_id` of the lookup, `.100` marks a hundred-result SERP and `.sch` a page SERPChecker or KWFinder stored from 2026-10-02. Pass it as returned to `/serpchecker/serps/{serp_id}/snapshot`. Null when no page was stored for this response."
           },
           "serp_source_url": {
             "type": "string",
+            "nullable": true,
             "example": "https://example.com/serp/58dc27755a3518edf5bb650abadf22d1.2021-03-31.html",
-            "description": "URL of the stored copy of the result page."
+            "description": "URL of the stored copy of the result page. Null when no page was stored for this response."
           },
           "serpFeaturesImpact": {
             "type": "integer",
