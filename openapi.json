@@ -1002,7 +1002,7 @@
                     "type": "integer",
                     "minimum": 1,
                     "default": 1,
-                    "description": "Page number (Premium, Agency, Custom and API Pro plans; other plans always get page 1)"
+                    "description": "Page number (Premium, Agency, Custom and API Pro plans, or a lookup paid by a keyword credit; other plans always get page 1)"
                   }
                 }
               }
@@ -5471,6 +5471,30 @@
                 "type": "integer",
                 "description": "Seconds to wait before retrying, also sent as the `Retry-After` response header. Sent with the burst limit and the keyword-import cooldown (both 429 RateLimit) and with the 500 returned when SERP data is temporarily unavailable. CreditLimit answers never carry it, and neither do the RateLimit answers that a wait does not clear — the precondition ones such as SiteProfiler's \"Not in history\".",
                 "example": 30
+              },
+              "permanent_credits_used_up": {
+                "type": "boolean",
+                "description": "Only on a 429 CreditLimit of an API or MCP request from a Free or Free+ account whose permanent credits for `resource` are used up, so the daily limit applies again. With it come `resource`, `limit` and `reset`.",
+                "example": true
+              },
+              "resource": {
+                "type": "string",
+                "enum": [
+                  "related-keywords",
+                  "serps"
+                ],
+                "description": "The daily pool that is spent. Sent with `permanent_credits_used_up`.",
+                "example": "related-keywords"
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Daily lookups of that pool. Sent with `permanent_credits_used_up`.",
+                "example": 5
+              },
+              "reset": {
+                "type": "integer",
+                "description": "Seconds until the daily pool resets (relative, NOT a unix timestamp). Sent with `permanent_credits_used_up`.",
+                "example": 35000
               }
             }
           }
@@ -5921,6 +5945,42 @@
               }
             },
             "nullable": true
+          },
+          "permanent_credits": {
+            "type": "object",
+            "description": "Present only for Free and Free+ accounts with a confirmed e-mail, without Full API access and without a Keyword API plan, whatever the client. One-time lookups for API and MCP requests at 1 request = 1 lookup; they never reset. An API or MCP request spends them before the daily limit in `resources`, one lookup per request. Before the first such request both carry the full amount. The successful response that spends the last lookup of a pool carries the header `x-mangools-permanent-credits-used-up` with a JSON object: `resource`, `limit` (the permanent credits), `daily_limit` and `reset` (seconds until the daily pool resets). A keyword lookup paid by a credit gets the Premium result sizes and pagination, and `related-keywords-rows` and `competitor-keywords-rows` in this response show them as long as keyword credits remain. On related keywords, competitor keywords (GET) and keyword gap, a lookup made in the app and repeated over the API or MCP within 24 hours spends a credit.",
+            "properties": {
+              "related-keywords": {
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "example": 100,
+                    "description": "Keyword lookups granted to the account"
+                  },
+                  "remaining": {
+                    "type": "integer",
+                    "example": 99,
+                    "description": "Remaining lookups"
+                  }
+                }
+              },
+              "serps": {
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "example": 100,
+                    "description": "SERP lookups granted to the account"
+                  },
+                  "remaining": {
+                    "type": "integer",
+                    "example": 100,
+                    "description": "Remaining lookups"
+                  }
+                }
+              }
+            }
           },
           "resources": {
             "type": "object",
@@ -8515,7 +8575,7 @@
         "properties": {
           "isAllowedPagination": {
             "type": "boolean",
-            "description": "Whether pagination is allowed for the user's plan",
+            "description": "Whether pagination is allowed for the user's plan or for a lookup paid by a keyword credit",
             "example": true
           },
           "page": {
