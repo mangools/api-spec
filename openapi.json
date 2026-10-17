@@ -6629,6 +6629,10 @@
           "last_checked_at": {
             "type": "integer",
             "description": "Unix timestamp of the last check."
+          },
+          "rank_check_pending": {
+            "type": "boolean",
+            "description": "True while a scan of the keyword is queued and has not landed: an on-demand refresh in flight or the first crawl of a keyword added in the last 24 hours."
           }
         }
       },
@@ -9780,6 +9784,10 @@
             "type": "string",
             "description": "Date of the last crawl (YYYY-MM-DD), or null.",
             "nullable": true
+          },
+          "rank_check_pending": {
+            "type": "boolean",
+            "description": "True while a scan of the keyword is queued and has not landed: an on-demand refresh in flight or the first crawl of a keyword added in the last 24 hours."
           },
           "estimated_visits_change": {
             "type": "number",
