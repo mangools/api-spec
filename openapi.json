@@ -1549,8 +1549,8 @@
           "paid"
         ],
         "operationId": "get-serpchecker-serps-reset",
-        "summary": "Re-fetch SERP results with all metrics (consumes serp_count SERP credits)",
-        "description": "Force a re-parse of the SERP and return updated results with all features. **This operation consumes serp_count SERP credits per call (one per page, default 1)**, even though it is a GET request, and a page that fails to re-parse is still charged. It is NOT a free read — use it only when you intentionally want fresh SERP data. For cached results that do not consume credits, use `GET /serpchecker/serps` instead.\n",
+        "summary": "Re-fetch SERP pages with all metrics (one SERP credit per returned page)",
+        "description": "Force a re-parse of `serp_count` pages of the SERP, from `page` on, and return them with all features. **This operation consumes one SERP credit for every returned page with results**, even though it is a GET request; a page that fails to re-parse or comes back without results is not charged. It is NOT a free read — use it only when you intentionally want fresh SERP data. For cached results that do not consume credits, use `GET /serpchecker/serps` instead.\n\n### Pages that fail\n\nThe answer has one element per requested page, in page order. When the SERP providers fail on a page, that page keeps its place with empty `items` and an `error` (`type`, `message` and, when the providers were unavailable, `retry_after` in seconds), and the other pages still come back. Re-parse just that page later, with `page` set to its `page` and `serp_count=1`.\n\nA page that fails is tried once more while the call has time, so a call can take up to 90 seconds: give your HTTP client a timeout of at least 120 seconds. When no page can be re-parsed, the call answers HTTP 500 with `retry_after` and costs nothing.\n",
         "parameters": [
           {
             "name": "location_id",
@@ -1586,7 +1586,7 @@
           },
           {
             "name": "serp_count",
-            "description": "Number of SERP pages to reparse (1-10). Defaults to 1.",
+            "description": "Number of SERP pages to reparse (1-10), from `page` on. Defaults to 1. The pages stop at the tenth.",
             "in": "query",
             "required": false,
             "schema": {
@@ -1594,6 +1594,18 @@
               "minimum": 1,
               "maximum": 10,
               "default": 1
+            }
+          },
+          {
+            "name": "page",
+            "description": "The first page to reparse, counted from 0 like `page` in the answer: 0 (the default) is the first SERP page, 9 the tenth.",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9,
+              "default": 0
             }
           }
         ],
@@ -1604,7 +1616,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Result ok.",
+            "description": "At least one page was re-parsed. One element per requested page, in page order; a page that failed has an `error`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1621,6 +1633,23 @@
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "No page could be re-parsed. Nothing is charged; try again after `retry_after` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "FailedDependencyException",
+                    "message": "No available SERP provider",
+                    "retry_after": 60
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -4543,7 +4572,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Comma-separated model IDs (0 means all models overview)"
+            "description": "Comma-separated model IDs. Leave it out, or pass `0` or a blank value, for all models."
           },
           {
             "in": "query",
@@ -4552,7 +4581,7 @@
               "type": "string",
               "format": "date"
             },
-            "description": "Start date for data range"
+            "description": "Start date of the range, YYYY-MM-DD. Defaults to 30 days before today (UTC); a blank value is the same as leaving it out. A date that is not a check day resolves to the latest check on or before it, and a date before the monitor's first check resolves to the first check. `dateRange` in the response shows the dates actually used, and `availableDates` lists the check days."
           },
           {
             "in": "query",
@@ -4561,7 +4590,7 @@
               "type": "string",
               "format": "date"
             },
-            "description": "End date for data range"
+            "description": "End date of the range, YYYY-MM-DD. Defaults to today (UTC); a blank value is the same as leaving it out. A date that is not a check day resolves to the latest check on or before it. When no check is on or before it, for example before the monitor's first check, both dates stay as requested and every metric is null. `dateRange` in the response shows the dates actually used, and `availableDates` lists the check days."
           }
         ],
         "responses": {
@@ -4977,7 +5006,34 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Monitor ID"
+          },
+          {
+            "in": "query",
+            "name": "models",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated model IDs. Leave it out, or pass `0` or a blank value, for all models."
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Start date of the range, YYYY-MM-DD. Defaults to 30 days before today (UTC); a blank value is the same as leaving it out. A date that is not a check day resolves to the latest check on or before it, and a date before the monitor's first check resolves to the first check. `dateRange` in the response shows the dates actually used; the check days are listed in `availableDates` of `GET /aiwatcher/monitor/{id}`."
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "End date of the range, YYYY-MM-DD. Defaults to today (UTC); a blank value is the same as leaving it out. A date that is not a check day resolves to the latest check on or before it. When no check is on or before it, for example before the monitor's first check, both dates stay as requested and every metric is null. `dateRange` in the response shows the dates actually used; the check days are listed in `availableDates` of `GET /aiwatcher/monitor/{id}`."
           }
         ],
         "responses": {
@@ -5370,6 +5426,73 @@
             "ApiKeyAuth": []
           }
         ]
+      }
+    },
+    "/system/ai-watcher-validate-token": {
+      "get": {
+        "tags": [
+          "aisearchwatcher",
+          "free"
+        ],
+        "operationId": "get-system-ai-watcher-validate-token",
+        "summary": "Validate the Looker Studio token",
+        "description": "Check whether an AI Search Watcher Looker Studio token is valid. The Looker Studio connector calls this endpoint to check the token a user enters.\n\nThe token is generated in AI Search Watcher under Share & Looker Studio. It is not the API key: send it in the `x-ai-watcher-looker-studio-token` header; this endpoint does not need `x-access-token`. The main account and its sub-users share one token.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-ai-watcher-looker-studio-token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Looker Studio token from Share & Looker Studio in AI Search Watcher."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The token is valid. The body is an empty JSON object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {},
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The header is missing or empty, or no account has this token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "MissingToken": {
+                    "summary": "The header is missing or empty",
+                    "value": {
+                      "error": {
+                        "type": "AuthError",
+                        "message": "Invalid AI Watcher LookerStudio token"
+                      }
+                    }
+                  },
+                  "UnknownToken": {
+                    "summary": "No account has this token",
+                    "value": {
+                      "error": {
+                        "type": "AuthError",
+                        "message": "Bad ai_watcher_looker_studio_token"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/linkminer/exports/suggest": {
@@ -7171,8 +7294,35 @@
       },
       "SerpResetResponse": {
         "type": "array",
+        "description": "One element per requested page, in page order. A page that could not be re-parsed keeps its place with `kw`, `page`, `platform_id`, `location`, empty `items` and an `error`.",
         "items": {
-          "$ref": "#/components/schemas/Serp"
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Serp"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "object",
+                  "description": "Only on a page that could not be re-parsed, in the shape of the error envelope. Re-parse the page later with `page` set to it.",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Error class name, e.g. `FailedDependencyException` when the SERP providers were unavailable or `TimeoutException` when the call ran out of time before the page."
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry_after": {
+                      "type": "integer",
+                      "description": "Seconds to wait before re-parsing the page; present when the SERP providers were unavailable."
+                    }
+                  }
+                }
+              }
+            }
+          ]
         }
       },
       "KwfinderList": {
@@ -8725,7 +8875,7 @@
                   "change": {
                     "type": "number",
                     "nullable": true,
-                    "description": "Change against the start date, or null when either end of the range has no data."
+                    "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A prompt with no value on the start date, for example one added after that check, counts as 0 there, so the change equals the value. Null when there is no value on the end date."
                   }
                 }
               },
@@ -8741,7 +8891,7 @@
                   "change": {
                     "type": "number",
                     "nullable": true,
-                    "description": "Change against the start date, or null when either end of the range has no data."
+                    "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A prompt with no value on the start date, for example one added after that check, counts as 0 there, so the change equals the value. Null when there is no value on the end date."
                   }
                 }
               },
@@ -8757,7 +8907,7 @@
                   "change": {
                     "type": "number",
                     "nullable": true,
-                    "description": "Change against the start date, or null when either end of the range has no data."
+                    "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A lower position is better, so an improvement gives a negative change. Null when either date has no value."
                   }
                 }
               },
@@ -8773,7 +8923,7 @@
                   "change": {
                     "type": "number",
                     "nullable": true,
-                    "description": "Change against the start date, or null when either end of the range has no data."
+                    "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A prompt with no value on the start date, for example one added after that check, counts as 0 there, so the change equals the value. Null when there is no value on the end date."
                   }
                 }
               },
@@ -8789,7 +8939,7 @@
                   "change": {
                     "type": "number",
                     "nullable": true,
-                    "description": "Change against the start date, or null when either end of the range has no data."
+                    "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A lower rank is better, so an improvement gives a negative change. Null when either date has no value."
                   }
                 }
               }
@@ -9922,11 +10072,11 @@
             "properties": {
               "from": {
                 "type": "string",
-                "description": "Start date."
+                "description": "Start date actually used, YYYY-MM-DD."
               },
               "to": {
                 "type": "string",
-                "description": "End date."
+                "description": "End date actually used, YYYY-MM-DD."
               }
             }
           },
@@ -9958,7 +10108,7 @@
                   "change": {
                     "type": "number",
                     "nullable": true,
-                    "description": "Change against the start date, or null when either end of the range has no data."
+                    "description": "Value on the end date minus value on the start date, rounded to 1 decimal. No value on the start date, for example when none of the selected models has results on that day, counts as 0, so the change equals the value. Null when there is no value on the end date."
                   }
                 }
               },
@@ -9974,7 +10124,7 @@
                   "change": {
                     "type": "number",
                     "nullable": true,
-                    "description": "Change against the start date, or null when either end of the range has no data."
+                    "description": "Value on the end date minus value on the start date, rounded to 1 decimal. No value on the start date, for example when none of the selected models has results on that day, counts as 0, so the change equals the value. Null when there is no value on the end date."
                   }
                 }
               },
@@ -9990,7 +10140,7 @@
                   "change": {
                     "type": "number",
                     "nullable": true,
-                    "description": "Change against the start date, or null when either end of the range has no data."
+                    "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A lower position is better, so an improvement gives a negative change. Null when either date has no value."
                   }
                 }
               },
@@ -10382,11 +10532,11 @@
             "properties": {
               "from": {
                 "type": "string",
-                "description": "Start date."
+                "description": "Start date actually used, YYYY-MM-DD."
               },
               "to": {
                 "type": "string",
-                "description": "End date."
+                "description": "End date actually used, YYYY-MM-DD."
               }
             }
           },
@@ -10397,7 +10547,7 @@
               "models": {
                 "type": "array",
                 "nullable": true,
-                "description": "Filtered model IDs. This endpoint does not filter by model and leaves it out.",
+                "description": "Filtered model IDs. This endpoint leaves the field out, but the `models` query parameter still filters the metrics.",
                 "items": {
                   "type": "integer"
                 }
@@ -10453,7 +10603,7 @@
                         "change": {
                           "type": "number",
                           "nullable": true,
-                          "description": "Change against the start date, or null when either end of the range has no data."
+                          "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A prompt with no value on the start date, for example one added after that check, counts as 0 there, so the change equals the value. Null when there is no value on the end date."
                         }
                       }
                     },
@@ -10469,7 +10619,7 @@
                         "change": {
                           "type": "number",
                           "nullable": true,
-                          "description": "Change against the start date, or null when either end of the range has no data."
+                          "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A prompt with no value on the start date, for example one added after that check, counts as 0 there, so the change equals the value. Null when there is no value on the end date."
                         }
                       }
                     },
@@ -10485,7 +10635,7 @@
                         "change": {
                           "type": "number",
                           "nullable": true,
-                          "description": "Change against the start date, or null when either end of the range has no data."
+                          "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A lower position is better, so an improvement gives a negative change. Null when either date has no value."
                         }
                       }
                     },
@@ -10501,23 +10651,23 @@
                         "change": {
                           "type": "integer",
                           "nullable": true,
-                          "description": "Change against the start date, or null when either end of the range has no data."
+                          "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A prompt with no value on the start date, for example one added after that check, counts as 0 there, so the change equals the value. Null when there is no value on the end date."
                         }
                       }
                     },
                     "citationRank": {
                       "type": "object",
-                      "description": "Rank of the brand domain among the cited domains.",
+                      "description": "Average rank of the brand domain among the cited domains.",
                       "properties": {
                         "value": {
-                          "type": "integer",
+                          "type": "number",
                           "nullable": true,
                           "description": "Value on the end date, or null when there is no data."
                         },
                         "change": {
-                          "type": "integer",
+                          "type": "number",
                           "nullable": true,
-                          "description": "Change against the start date, or null when either end of the range has no data."
+                          "description": "Value on the end date minus value on the start date, rounded to 1 decimal. A lower rank is better, so an improvement gives a negative change. Null when either date has no value."
                         }
                       }
                     }
