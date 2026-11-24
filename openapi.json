@@ -4464,7 +4464,7 @@
         ],
         "operationId": "post-aiwatcher-monitor",
         "summary": "Create AI monitoring for a brand",
-        "description": "Create a new AI Search Watcher brand monitor — a tracked setup that measures how often a brand is mentioned and cited by AI answer engines (ChatGPT, Gemini, Claude, etc.) for a given set of prompts.\n\nRequest body:\n\n* `brand` — brand name to monitor\n* `domain` — brand domain\n* `location_id` — location used when collecting AI responses (see `/mangools/locations`)\n* `platform_id` — search platform (`1` = desktop, `2` = mobile)\n* `models` — array of numeric AI model IDs to run the prompts against, as returned in `id` by `GET /aiwatcher/models`\n* `prompts` — array of prompt strings the monitor will send to each model\n* `language_id` — optional language for localization\n\nReturns the newly created monitor's `_id`. Use `POST /aiwatcher/prompts/generate` first to obtain AI-suggested prompt ideas for a given brand.",
+        "description": "Create a new AI Search Watcher brand monitor — a tracked setup that measures how often a brand is mentioned and cited by AI answer engines (ChatGPT, Gemini, Claude, etc.) for a given set of prompts.\n\nRequest body:\n\n* `brand` — brand name to monitor\n* `domain` — brand domain\n* `location_id` — location used when collecting AI responses (see `/mangools/locations`)\n* `platform_id` — search platform (`1` = desktop, `2` = mobile)\n* `models` — array of numeric AI model IDs to run the prompts against, as returned in `id` by `GET /aiwatcher/models`\n* `prompts` — array of prompt strings the monitor will send to each model\n* `language_id` — optional language for localization\n* `brand_profile` — optional brand profile to save with the monitor (see `POST /aiwatcher/brand-profile/build`); `saved_at` is set to now and `regenerations` is capped at 5\n\nReturns the newly created monitor's `_id`. Use `POST /aiwatcher/prompts/generate` first to obtain AI-suggested prompt ideas for a given brand.",
         "requestBody": {
           "required": true,
           "content": {
@@ -4513,6 +4513,15 @@
                   "language_id": {
                     "type": "number",
                     "description": "Language ID for localization (optional). When it is missing, 0 or not a known language, the monitor gets the location's default language from DataForSEO Labs, or English when Labs has none we list."
+                  },
+                  "brand_profile": {
+                    "type": "object",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/BrandProfile"
+                      }
+                    ],
+                    "description": "Brand profile to save with the monitor (optional). `saved_at` is set to now and `regenerations` is capped at 5."
                   }
                 }
               }
@@ -4751,7 +4760,7 @@
         ],
         "operationId": "post-aiwatcher-prompts-generate",
         "summary": "Generate AI prompts for brand monitoring",
-        "description": "Generate suggested monitoring prompts and a brand-perception summary for a given brand — useful during monitor onboarding so users do not have to come up with AI Search Watcher prompts manually.\n\nRequest body:\n\n* `brand` — brand name to analyze\n* `domain` — accepted but not used when generating prompts\n* `location_id` — accepted but not used when generating prompts\n* `platform_id` — accepted but not used when generating prompts\n* `language_id` — optional language for prompt generation\n\nResponse:\n\n* `prompts` — array of suggested prompt strings ready to pass into `POST /aiwatcher/monitor`\n* `maxGeneratePrompts` — maximum number of prompts the current plan allows to generate\n* `perception` — a short textual summary of how AI models currently describe the brand",
+        "description": "Generate suggested monitoring prompts and a brand-perception summary for a given brand — useful during monitor onboarding so users do not have to come up with AI Search Watcher prompts manually. Send `brand_profile` to generate the prompts from a brand profile the user reviewed instead (see `POST /aiwatcher/brand-profile/build`); they then come grouped per product or service.\n\nRequest body:\n\n* `brand` — brand name to analyze\n* `domain` — without `brand_profile`, the brand perception is written from the title and meta description of the homepage on this domain when the page has them; not used with `brand_profile` (to draft a brand profile from the homepage, call `POST /aiwatcher/brand-profile/build`)\n* `location_id` — without `brand_profile`, accepted but not used when generating prompts; with it, the location is passed to the AI model, and prompts for a local service can name the city when the location is a city\n* `platform_id` — accepted but not used when generating prompts\n* `language_id` — optional language for prompt generation\n* `brand_profile` — optional brand profile to generate the prompts from; its `about` must not be empty. The prompts are grouped per product or service, one group per product; when the profile lists no products, the AI model infers them from `about`. The groups share one total: on an AI or Combo plan the larger of `maxGeneratePrompts` and the number of products, so every product gets at least one prompt, but no more than the prompts left on the account unless that is below `maxGeneratePrompts`; on other plans `maxGeneratePrompts`, the first products getting one each when there are more products than that\n\nResponse:\n\n* `prompts` — array of suggested prompt strings ready to pass into `POST /aiwatcher/monitor`; with `brand_profile`, the prompts of all groups in one list, one prompt per group per round, which on an AI or Combo plan can be more than `maxGeneratePrompts`\n* `maxGeneratePrompts` — number of prompts the current plan generates, regardless of the products in `brand_profile`\n* `perception` — a short textual summary of how AI models currently describe the brand; with `brand_profile`, the profile's `about`\n* `groups` — only when `brand_profile` was sent: the prompts per product or service, each group with its `name` and `prompts`",
         "requestBody": {
           "required": true,
           "content": {
@@ -4767,7 +4776,7 @@
                 "properties": {
                   "location_id": {
                     "type": "number",
-                    "description": "Accepted but not used when generating prompts."
+                    "description": "Without `brand_profile`, accepted but not used when generating prompts. With it, the location is passed to the AI model, and prompts for a local service can name the city when the location is a city."
                   },
                   "platform_id": {
                     "type": "number",
@@ -4779,11 +4788,20 @@
                   },
                   "domain": {
                     "type": "string",
-                    "description": "Accepted but not used when generating prompts."
+                    "description": "Without `brand_profile`, the brand perception is written from the title and meta description of the homepage on this domain when the page has them. Not used with `brand_profile`."
                   },
                   "language_id": {
                     "type": "number",
                     "description": "Language ID for prompt generation (optional)"
+                  },
+                  "brand_profile": {
+                    "type": "object",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/BrandProfile"
+                      }
+                    ],
+                    "description": "Brand profile to generate the prompts from (optional); its `about` must not be empty. Without it, the prompts are generated from the brand perception."
                   }
                 }
               }
@@ -4803,15 +4821,35 @@
                       "items": {
                         "type": "string"
                       },
-                      "description": "Generated monitoring prompts"
+                      "description": "Generated monitoring prompts. With `brand_profile`, the prompts of all groups in one list, one prompt per group per round; on an AI or Combo plan with more products than `maxGeneratePrompts`, one or more per product, so the list can be longer than `maxGeneratePrompts`."
                     },
                     "perception": {
                       "type": "string",
-                      "description": "Brand perception description"
+                      "description": "Brand perception description. With `brand_profile`, the profile's `about`."
                     },
                     "maxGeneratePrompts": {
                       "type": "integer",
-                      "description": "Maximum number of prompts the current plan allows to generate."
+                      "description": "Number of prompts the current plan generates, regardless of the products in `brand_profile`."
+                    },
+                    "groups": {
+                      "type": "array",
+                      "description": "Only when `brand_profile` was sent: the prompts grouped per product or service.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Product or service the group is about."
+                          },
+                          "prompts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Prompts of the group."
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -4820,6 +4858,22 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "424": {
+            "description": "The AI model failed to generate the prompts (`FailedDependencyException`). Try again later, or enter the prompts by hand.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "FailedDependencyException",
+                    "message": "The AI model did not answer, the prompts could not be generated"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5493,6 +5547,602 @@
             }
           }
         }
+      }
+    },
+    "/aiwatcher/brand-profile/build": {
+      "post": {
+        "tags": [
+          "aisearchwatcher",
+          "free"
+        ],
+        "operationId": "post-aiwatcher-brand-profile-build",
+        "summary": "Draft a brand profile from the homepage",
+        "description": "Draft a short brand profile for a new or existing monitor: what the brand does, its products or services, who they are for and its type of business. `POST /aiwatcher/prompts/generate` generates prompt suggestions from it.\n\nThe brand's homepage is read with one plain GET, without subpages, and an AI model drafts the profile from it (`source` is `homepage`). When the homepage cannot be read, the profile is drafted from what an AI model knows about the brand: `source` is `ai_memory` and `fallback_reason` says why. Nothing is saved, except that a regeneration is counted on the monitor named by `monitor_id`. Save the profile with `POST /aiwatcher/monitor` or `PUT /aiwatcher/monitor/{id}/brand-profile`.\n\nRequest body:\n\n* `brand` — brand name, 2 to 50 characters\n* `domain` — brand domain whose homepage is read\n* `brandVariations` — optional brand name variations, at most 10\n* `location_id` — location the AI answers are collected for (see `/mangools/locations`)\n* `language_id` — optional language the profile is written in\n* `previous` — optional profile the user is editing; the draft then replaces only what the user has not touched: items and fields with origin `user` are kept, and keys in `removed_keys` stay removed\n* `monitor_id` — optional ID of the monitor the profile is for\n* `mode` — `build` (default) or `regenerate`; regenerating is capped at 5 per monitor, counted on the monitor when `monitor_id` is sent and from `previous.regenerations` when it is not\n\nResponse:\n\n* `profile` — the drafted profile\n* `regenerations_left` — regenerations still allowed",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "brand",
+                  "domain",
+                  "location_id"
+                ],
+                "properties": {
+                  "brand": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 50,
+                    "description": "Brand name."
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "Brand domain. Its homepage is read to draft the profile."
+                  },
+                  "brandVariations": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Brand name variations (optional)."
+                  },
+                  "location_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Location the AI answers are collected for (see GET /mangools/locations). 0 (Anywhere) is not supported."
+                  },
+                  "language_id": {
+                    "type": "integer",
+                    "description": "Language the profile is written in (optional)."
+                  },
+                  "previous": {
+                    "type": "object",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/BrandProfile"
+                      }
+                    ],
+                    "description": "The profile the user is editing (optional). The draft then replaces only what the user has not touched: items and fields with origin `user` are kept, and keys in `removed_keys` stay removed."
+                  },
+                  "monitor_id": {
+                    "type": "string",
+                    "description": "ID of the monitor the profile is for (optional). With `mode` `regenerate`, the regeneration is counted on this monitor."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "build",
+                      "regenerate"
+                    ],
+                    "default": "build",
+                    "description": "`regenerate` counts against the cap of 5 regenerations per monitor: on the monitor when `monitor_id` is sent, otherwise from `previous.regenerations`, and the returned profile then carries the new count."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Drafted brand profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "type": "object",
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/BrandProfile"
+                        }
+                      ],
+                      "description": "The drafted profile, merged with `previous` when it was sent. It is not saved."
+                    },
+                    "regenerations_left": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 5,
+                      "description": "Regenerations still allowed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Invalid input parameters, or `monitor_id` names no monitor of yours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "ValidationError",
+                    "message": "Your request is invalid",
+                    "errors": [
+                      "Your request is invalid"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "The AI model failed to draft the profile (`FailedDependencyException`). Try again later, or let the user write the profile by hand.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "FailedDependencyException",
+                    "message": "The AI model did not answer, the brand profile could not be drafted"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "All 5 regenerations are used (`RateLimit`, no `retry_after`). Waiting does not clear it; the profile can still be edited by hand.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "RateLimit",
+                    "message": "The brand profile can be regenerated at most 5 times"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "Error",
+                    "message": "Internal server error"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/aiwatcher/brand-profile/reuse": {
+      "get": {
+        "tags": [
+          "aisearchwatcher",
+          "free"
+        ],
+        "operationId": "get-aiwatcher-brand-profile-reuse",
+        "summary": "Find a saved brand profile for a domain",
+        "description": "Find a brand profile you already saved for a domain, so a new monitor can start from it instead of building a new one. The profile comes from one of your monitors on the same domain that has a saved brand profile, preferring a monitor in the same location, then the newest.\n\nQuery parameters:\n\n* `domain` — domain of the new monitor\n* `location_id` — optional location of the new monitor\n\nResponse:\n\n* `match` — null when none of your monitors on this domain has a saved profile; otherwise that monitor's `monitor_id`, `brand`, `domain`, `location_id`, `location_label` and its saved `profile`, and `regenerations_left`, the regenerations of the new monitor",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "domain",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Domain to find a saved brand profile for."
+          },
+          {
+            "in": "query",
+            "name": "location_id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Location of the new monitor (optional). A monitor in this location is preferred."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The monitor whose profile can be reused, or null",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "match": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "Your monitor whose saved brand profile can be reused, or null.",
+                      "properties": {
+                        "monitor_id": {
+                          "type": "string",
+                          "description": "Monitor ID."
+                        },
+                        "brand": {
+                          "type": "string",
+                          "description": "Brand name of the monitor."
+                        },
+                        "domain": {
+                          "type": "string",
+                          "description": "Domain of the monitor."
+                        },
+                        "location_id": {
+                          "type": "integer",
+                          "description": "Location of the monitor."
+                        },
+                        "location_label": {
+                          "type": "string",
+                          "description": "Name of that location."
+                        },
+                        "profile": {
+                          "type": "object",
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/BrandProfile"
+                            }
+                          ],
+                          "description": "The brand profile saved with the monitor."
+                        },
+                        "regenerations_left": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 5,
+                          "description": "Regenerations of the profile the new monitor starts with: all of them, as they are counted per monitor."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "The domain is missing or is not a domain a monitor can have (`InvalidInput`, `Parameter url is invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "ValidationError",
+                    "message": "Your request is invalid",
+                    "errors": [
+                      "Your request is invalid"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "Error",
+                    "message": "Internal server error"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/aiwatcher/monitor/{id}/brand-profile": {
+      "get": {
+        "tags": [
+          "aisearchwatcher",
+          "free"
+        ],
+        "operationId": "get-aiwatcher-monitor-by-id-brand-profile",
+        "summary": "Get monitor brand profile",
+        "description": "Get the brand profile saved with a monitor, together with the monitor's current domain and brand. `stale` tells whether the monitor's website or brand changed since the profile was built.\n\nResponse:\n\n* `profile` — the saved brand profile, or null when the monitor has none\n* `stale` — null, or `field`, `from` and `to` when the monitor's domain or brand is no longer the one the profile was built for: `field` is `domain` or `brand` (`domain` when both changed), `from` the value the profile was built for, `to` the monitor's current value\n* `monitor` — the monitor's current `domain` and `brand`\n* `regenerations_left` — how many more times the profile can be regenerated for this monitor (`mode` `regenerate` of `POST /aiwatcher/brand-profile/build` with `monitor_id`)",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Monitor ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Brand profile retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "type": "object",
+                      "nullable": true,
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/BrandProfile"
+                        }
+                      ],
+                      "description": "The brand profile saved with the monitor, or null when it has none."
+                    },
+                    "stale": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "Set when the monitor's domain or brand changed since the profile was built, null otherwise. A profile written by hand (`built_for` null) is never stale.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "enum": [
+                            "domain",
+                            "brand"
+                          ],
+                          "description": "What changed. When both changed, `domain`."
+                        },
+                        "from": {
+                          "type": "string",
+                          "description": "Value the profile was built for."
+                        },
+                        "to": {
+                          "type": "string",
+                          "description": "The monitor's current value."
+                        }
+                      }
+                    },
+                    "monitor": {
+                      "type": "object",
+                      "description": "The monitor's current domain and brand.",
+                      "properties": {
+                        "domain": {
+                          "type": "string",
+                          "description": "Brand domain."
+                        },
+                        "brand": {
+                          "type": "string",
+                          "description": "Brand name."
+                        }
+                      }
+                    },
+                    "regenerations_left": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 5,
+                      "description": "Regenerations of the profile still allowed for this monitor, counted also before a profile is first saved."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Invalid monitor ID, or no monitor with this ID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "ValidationError",
+                    "message": "Your request is invalid",
+                    "errors": [
+                      "Your request is invalid"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "Error",
+                    "message": "Internal server error"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "aisearchwatcher",
+          "free"
+        ],
+        "operationId": "put-aiwatcher-monitor-by-id-brand-profile",
+        "summary": "Save monitor brand profile",
+        "description": "Save a brand profile with a monitor, replacing the one saved before. The server sets `saved_at` to now and keeps its own `regenerations` count, ignoring the value sent. Prompts the monitor already tracks are not changed.\n\nRequest body:\n\n* `profile` — the brand profile to save, as `POST /aiwatcher/brand-profile/build` returned it with the user's edits. The server replaces a non-null `built_for` with the monitor's current domain and brand, so saving confirms the profile for the monitor as it is now and clears `stale` without rebuilding it; a `built_for` of null (a profile written by hand) stays null.\n\nThe response has the same shape as `GET /aiwatcher/monitor/{id}/brand-profile`.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Monitor ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "profile"
+                ],
+                "properties": {
+                  "profile": {
+                    "type": "object",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/BrandProfile"
+                      }
+                    ],
+                    "description": "The brand profile to save."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Brand profile saved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "type": "object",
+                      "nullable": true,
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/BrandProfile"
+                        }
+                      ],
+                      "description": "The brand profile saved with the monitor, or null when it has none."
+                    },
+                    "stale": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "Set when the monitor's domain or brand changed since the profile was built, null otherwise. A profile written by hand (`built_for` null) is never stale.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "enum": [
+                            "domain",
+                            "brand"
+                          ],
+                          "description": "What changed. When both changed, `domain`."
+                        },
+                        "from": {
+                          "type": "string",
+                          "description": "Value the profile was built for."
+                        },
+                        "to": {
+                          "type": "string",
+                          "description": "The monitor's current value."
+                        }
+                      }
+                    },
+                    "monitor": {
+                      "type": "object",
+                      "description": "The monitor's current domain and brand.",
+                      "properties": {
+                        "domain": {
+                          "type": "string",
+                          "description": "Brand domain."
+                        },
+                        "brand": {
+                          "type": "string",
+                          "description": "Brand name."
+                        }
+                      }
+                    },
+                    "regenerations_left": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 5,
+                      "description": "Regenerations of the profile still allowed for this monitor, counted also before a profile is first saved."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Invalid input parameters or monitor ID, or no monitor with this ID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "ValidationError",
+                    "message": "Your request is invalid",
+                    "errors": [
+                      "Your request is invalid"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "Error",
+                    "message": "Internal server error"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
       }
     },
     "/linkminer/exports/suggest": {
@@ -6435,6 +7085,11 @@
             "type": "string",
             "description": "Platform of the account plan, for example mangools, api, ai or combo.",
             "example": "mangools"
+          },
+          "hasAiPlatformPlan": {
+            "type": "boolean",
+            "description": "Whether the account plan includes AI Search Watcher: platformPlan ai or combo.",
+            "example": false
           },
           "trackings": {
             "type": "integer",
@@ -10711,6 +11366,163 @@
                 }
               }
             }
+          }
+        }
+      },
+      "BrandProfile": {
+        "type": "object",
+        "description": "A short description of a brand that prompt suggestions are generated from: what the brand does, its products or services, who they are for and its type of business. `POST /aiwatcher/brand-profile/build` drafts it, the user reviews and edits it, and `POST /aiwatcher/monitor` or `PUT /aiwatcher/monitor/{id}/brand-profile` saves it with a monitor. `POST /aiwatcher/prompts/generate` takes it as `brand_profile`. Origin `user` marks an item or field the user added or edited: when the profile is rebuilt (sent as `previous` to the build endpoint), those are kept, the rest is replaced, and an item whose key is in `removed_keys` is never added back.",
+        "properties": {
+          "about": {
+            "type": "string",
+            "maxLength": 600,
+            "description": "One or two sentences describing what the brand does."
+          },
+          "about_origin": {
+            "type": "string",
+            "enum": [
+              "site",
+              "ai_memory",
+              "user"
+            ],
+            "description": "Where `about` comes from: `site` the brand's homepage, `ai_memory` what an AI model knows about the brand, `user` written or edited by the user."
+          },
+          "products": {
+            "type": "array",
+            "maxItems": 30,
+            "description": "Products or services the brand offers.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "`name` lowercased and trimmed, with whitespace collapsed. Identifies the item when the profile is rebuilt and in `removed_keys`."
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 80,
+                  "description": "Product or service name."
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 160,
+                  "description": "Short description of the product or service."
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "site",
+                    "ai_memory",
+                    "user"
+                  ],
+                  "description": "Where the item comes from: `site` the brand's homepage, `ai_memory` what an AI model knows about the brand, `user` added or edited by the user."
+                }
+              }
+            }
+          },
+          "audiences": {
+            "type": "array",
+            "maxItems": 20,
+            "description": "Who the products and services are for, for example small businesses or dog owners.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "`name` lowercased and trimmed, with whitespace collapsed. Identifies the item when the profile is rebuilt and in `removed_keys`."
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 80,
+                  "description": "Audience name."
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "site",
+                    "ai_memory",
+                    "user"
+                  ],
+                  "description": "Where the item comes from: `site` the brand's homepage, `ai_memory` what an AI model knows about the brand, `user` added or edited by the user."
+                }
+              }
+            }
+          },
+          "business_type": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "Kind of business in a few words, for example SaaS, online store or local service. May be empty."
+          },
+          "business_type_origin": {
+            "type": "string",
+            "enum": [
+              "site",
+              "ai_memory",
+              "user"
+            ],
+            "description": "Where `business_type` comes from, with the same values as `about_origin`."
+          },
+          "removed_keys": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            },
+            "description": "Keys of drafted products and audiences the user removed. A rebuild never adds them back."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "homepage",
+              "ai_memory",
+              "manual"
+            ],
+            "description": "How the profile was drafted: `homepage` from the brand's homepage, `ai_memory` from what an AI model knows about the brand because the homepage could not be read, `manual` written by the user."
+          },
+          "fallback_reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "timeout",
+              "blocked",
+              "javascript",
+              "unreachable",
+              null
+            ],
+            "description": "Why the homepage could not be read, when `source` is `ai_memory`: `timeout` the site did not answer in time or failed with a server error, `blocked` the site refused the request or answered with a captcha or challenge page, `javascript` the page has almost no text without JavaScript or does not say what the company does, `unreachable` the domain could not be reached or the homepage does not exist. Null otherwise."
+          },
+          "built_for": {
+            "type": "object",
+            "nullable": true,
+            "description": "Domain and brand the profile was drafted for, or null for a profile the user wrote by hand. `GET /aiwatcher/monitor/{id}/brand-profile` compares it with the monitor's current domain and brand to report `stale`.",
+            "properties": {
+              "domain": {
+                "type": "string",
+                "description": "Domain the profile was drafted for."
+              },
+              "brand": {
+                "type": "string",
+                "description": "Brand name the profile was drafted for."
+              }
+            }
+          },
+          "homepage_read_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the brand's homepage was read for this profile, or null."
+          },
+          "saved_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the profile was last saved with a monitor, or null for a draft that was not saved."
+          },
+          "regenerations": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "description": "Regenerations used (`mode` `regenerate` of `POST /aiwatcher/brand-profile/build`), at most 5. The server keeps the count: `PUT /aiwatcher/monitor/{id}/brand-profile` ignores this value and `POST /aiwatcher/monitor` caps it at 5."
           }
         }
       }
