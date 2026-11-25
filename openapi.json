@@ -2623,7 +2623,7 @@
         ],
         "operationId": "post-serpwatcher-trackings",
         "summary": "Create tracking",
-        "description": "Create a new rank tracking for a single domain on a specific search location and platform. Pass the target `domain`, an initial list of `keywords`, the `location_id` and `platform_id`. Once the tracking is created, its keywords are queued for SERP crawl and default weekly and monthly email reports are automatically generated.\n\n### Platforms\n\nUse `platform_id` to choose the platform: 1 for desktop, 2 for mobile. For multiple platforms in a single call, see `/serpwatcher/multiple-trackings`.\n\n### Duplicates\n\nA tracking with the same domain, location and platform already in use returns HTTP 409.",
+        "description": "Create a new rank tracking for a single domain on a specific search location and platform. Pass the target `domain`, an initial list of `keywords`, the `location_id` and `platform_id`. Once the tracking is created, its keywords are queued for SERP crawl and default weekly and monthly email reports are automatically generated.\n\n### Keywords\n\n`keywords` is an array of plain strings, e.g. `[\"seo tools\", \"rank tracker\"]`. `POST /serpwatcher/multiple-trackings` and `POST /serpwatcher/trackings/{tracking_id}/tracked-keywords` take keyword objects instead, e.g. `[{ \"keyword\": \"seo tools\" }]`. A body with the other shape returns HTTP 422.\n\n### Platforms\n\nUse `platform_id` to choose the platform: 1 for desktop, 2 for mobile. For multiple platforms in a single call, see `/serpwatcher/multiple-trackings`.\n\n### Duplicates\n\nA tracking with the same domain, location and platform already in use returns HTTP 409.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -3172,7 +3172,7 @@
         ],
         "operationId": "post-serpwatcher-trackings-by-tracking-id-tracked-keywords",
         "summary": "Track another keyword",
-        "description": "Add new keywords to an existing tracking.\n\nRequest body:\n\n* `keywords` — array of keyword strings to add\n* `tag_ids` — optional array of tag IDs to assign to every added keyword (tags must already exist on the tracking)\n\nKeywords already tracked on this tracking are not re-added — their tags are simply extended with the provided ones. Only truly new keywords count against your tracked-keyword limit. The response returns both existing and newly added keywords in a single merged list.",
+        "description": "Add new keywords to an existing tracking.\n\nRequest body:\n\n* `keywords` — array of keyword objects to add, e.g. `[{ \"keyword\": \"seo tools\" }]`. Plain strings return HTTP 422; among the SERPWatcher endpoints only `POST /serpwatcher/trackings` takes them\n* `tag_ids` — optional array of tag IDs to assign to every added keyword (tags must already exist on the tracking)\n\nKeywords already tracked on this tracking are not re-added — their tags are simply extended with the provided ones. Only truly new keywords count against your tracked-keyword limit. The response returns both existing and newly added keywords in a single merged list.",
         "parameters": [
           {
             "name": "tracking_id",
@@ -3190,7 +3190,6 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "tag_ids",
                   "keywords"
                 ],
                 "properties": {
@@ -3668,8 +3667,9 @@
                     "type": "string"
                   },
                   "text": {
-                    "description": "Annotation text",
-                    "type": "string"
+                    "description": "Annotation text, at most 256 characters",
+                    "type": "string",
+                    "maxLength": 256
                   }
                 },
                 "required": [
@@ -3698,6 +3698,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -3738,7 +3741,8 @@
                 "type": "object",
                 "properties": {
                   "text": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 256
                   }
                 },
                 "required": [
@@ -3759,6 +3763,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       },
@@ -4193,8 +4200,8 @@
           "free"
         ],
         "operationId": "get-mangools-locations",
-        "summary": "Get list of all locations",
-        "description": "Search supported geotargeting locations by name. Pass a search `query` (country, region or city name, e.g. `New York`). Returns up to 100 matching active locations ordered by type and name, each with country code, canonical name and location ID.\n\nThis is a shared endpoint — the same `location_id` values are used across KWFinder, SERPChecker, SERPWatcher and AI Search Watcher whenever an endpoint accepts a location parameter.\n\nFor the complete reference of Google geotargeting IDs, see [Google Ads geotargeting](https://developers.google.com/google-ads/api/data/geotargets).",
+        "summary": "Search locations by name",
+        "description": "Search supported geotargeting locations by name. Pass a search `query` (country, region or city name, e.g. `New York`). Returns up to 100 matching active locations ordered by type and name, each with country code, canonical name and location ID. The endpoint does not list all locations: without `query`, or with the search term under another name such as `q`, it returns an empty array.\n\nThis is a shared endpoint — the same `location_id` values are used across KWFinder, SERPChecker, SERPWatcher and AI Search Watcher whenever an endpoint accepts a location parameter.\n\nFor the complete reference of Google geotargeting IDs, see [Google Ads geotargeting](https://developers.google.com/google-ads/api/data/geotargets).",
         "parameters": [
           {
             "name": "query",
@@ -5052,7 +5059,7 @@
         ],
         "operationId": "get-aiwatcher-monitor-by-id-prompts",
         "summary": "Get prompt details",
-        "description": "Get the list of monitoring prompts attached to a monitor. Each prompt entry includes its id, text, tags, creation and update timestamps, its metrics for the requested date range and its Google AI Overview information.",
+        "description": "Get the list of monitoring prompts attached to a monitor. Each prompt entry includes its id, text, tags, creation and update timestamps, its metrics for the requested date range and its Google AI Overview information. With `cited_url` or `cited_domain` the list holds only the prompts whose AI answers cited that URL or domain on the end date of the range (`dateRange.to`); each entry is the same as in the unfiltered list.",
         "parameters": [
           {
             "in": "path",
@@ -5069,7 +5076,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Comma-separated model IDs. Leave it out, or pass `0` or a blank value, for all models."
+            "description": "Comma-separated model IDs, digits only (HTTP 422 otherwise, also for a repeated `models`). Leave it out, or pass `0` or a blank value, for all models."
           },
           {
             "in": "query",
@@ -5088,6 +5095,26 @@
               "format": "date"
             },
             "description": "End date of the range, YYYY-MM-DD. Defaults to today (UTC); a blank value is the same as leaving it out. A date that is not a check day resolves to the latest check on or before it. When no check is on or before it, for example before the monitor's first check, both dates stay as requested and every metric is null. `dateRange` in the response shows the dates actually used; the check days are listed in `availableDates` of `GET /aiwatcher/monitor/{id}`."
+          },
+          {
+            "in": "query",
+            "name": "cited_url",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            "description": "Only the prompts behind this URL's row of `GET /aiwatcher/monitor/{id}/citations`: prompts with a top citation of exactly this stored URL on the end date of the range, counting the models in `models` that have citations. Another spelling of the same page (`www.`, a trailing slash, parameters, a fragment) is another row and matches nothing here. While a first run is partial, its unfinished model is left out, as in the citations. Cannot be combined with `cited_domain` (HTTP 422)."
+          },
+          {
+            "in": "query",
+            "name": "cited_domain",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253
+            },
+            "description": "Only the prompts behind this domain's row of `GET /aiwatcher/monitor/{id}/citations`: prompts with a top citation from this domain on the end date of the range, counting a model in `models` only while the domain is among the domains that model keeps: its 30 most cited with the own domain always among them, and below them every competitor tracked on that date. Case and `www.` are ignored; a subdomain is a different domain (`docs.example.com` is not `example.com`). Every domain the citations response lists is accepted. While a first run is partial, its unfinished model is left out. Cannot be combined with `cited_url` (HTTP 422)."
           }
         ],
         "responses": {
@@ -5103,6 +5130,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
           }
         },
         "security": [
@@ -5199,7 +5229,7 @@
         ],
         "operationId": "get-aiwatcher-monitor-by-id-settings",
         "summary": "Get monitor settings",
-        "description": "Get the current configuration of a monitor — brand name, brand variations, domain, location, configured AI models, language, active email reports and notification settings. Useful for populating a settings form in a client.",
+        "description": "Get the current configuration of a monitor — brand name, brand variations, tracked competitors, domain, location, configured AI models, language, active email reports and notification settings. Useful for populating a settings form in a client.",
         "parameters": [
           {
             "in": "path",
@@ -5258,6 +5288,28 @@
                       "description": "Brand name variations used for matching.",
                       "items": {
                         "type": "string"
+                      }
+                    },
+                    "competitors": {
+                      "type": "array",
+                      "description": "Tracked competitors in the order they were saved; empty when there are none. Their rows are flagged `isCompetitor` in the dashboard, prompt detail and citations responses.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Competitor brand name."
+                          },
+                          "website": {
+                            "type": "string",
+                            "description": "Competitor website as a hostname, without scheme, path and `www.`."
+                          },
+                          "addedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "When the competitor was first tracked. Dashboard checks dated at or after this time (a check date counts from 00:00 UTC) list the competitor even when no AI answer mentioned it."
+                          }
+                        }
                       }
                     },
                     "status_notifications": {
@@ -5322,7 +5374,7 @@
         ],
         "operationId": "put-aiwatcher-monitor-by-id-settings",
         "summary": "Update monitor settings",
-        "description": "Update the configuration of an existing monitor: brand name, brand variations, domain, AI model list and email reports. Location, platform and language cannot be changed. Only the fields present in the request body are updated, and any other field is rejected with HTTP 422.",
+        "description": "Update the configuration of an existing monitor: brand name, brand variations, tracked competitors, domain, AI model list and email reports. Location, platform and language cannot be changed. Only the fields present in the request body are updated, and any other field is rejected with HTTP 422.",
         "parameters": [
           {
             "in": "path",
@@ -5355,6 +5407,32 @@
                       "type": "string"
                     },
                     "description": "Brand name variations used for matching."
+                  },
+                  "competitors": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "name",
+                        "website"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 50,
+                          "description": "Competitor brand name, trimmed, without the characters ()[]{}."
+                        },
+                        "website": {
+                          "type": "string",
+                          "maxLength": 253,
+                          "description": "Competitor website; the scheme, path and `www.` are dropped, a subdomain is kept."
+                        }
+                      }
+                    },
+                    "description": "The complete list of tracked competitors; it replaces the stored one and `[]` removes them all. Names must be unique ignoring case and websites unique after normalisation. A competitor already tracked under the same name and website keeps its `addedAt`; a new one is tracked from now. A change of competitors alone does not set `hasPendingChanges`."
                   },
                   "domain": {
                     "type": "string",
@@ -5440,19 +5518,39 @@
             }
           },
           "422": {
-            "description": "Invalid input parameters",
+            "description": "Invalid input parameters. Also `InvalidInput` when a competitor would be the monitored brand or website, judged on the brand, brandVariations, domain and competitors the monitor has after this request (the sent value, else the stored one): `Competitor \"<name>\" is the monitored brand` when its name equals the brand or a variation ignoring case, spaces, `-`, `_`, quotes, ®™© and a possessive 's; `Competitor website \"<website>\" is the monitored website` when its normalised website is the domain or a subdomain of it.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
-                "example": {
-                  "error": {
-                    "type": "ValidationError",
-                    "message": "Your request is invalid",
-                    "errors": [
-                      "Your request is invalid"
-                    ]
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "error": {
+                        "type": "ValidationError",
+                        "message": "Your request is invalid",
+                        "errors": [
+                          "Your request is invalid"
+                        ]
+                      }
+                    }
+                  },
+                  "monitoredBrand": {
+                    "value": {
+                      "error": {
+                        "type": "InvalidInput",
+                        "message": "Competitor \"Mangools\" is the monitored brand"
+                      }
+                    }
+                  },
+                  "monitoredWebsite": {
+                    "value": {
+                      "error": {
+                        "type": "InvalidInput",
+                        "message": "Competitor website \"blog.mangools.com\" is the monitored website"
+                      }
+                    }
                   }
                 }
               }
@@ -7671,24 +7769,30 @@
         "properties": {
           "_id": {
             "type": "string",
-            "example": "11e2a4ff072b3f6394dfb602dcea80c3"
+            "example": "11e2a4ff072b3f6394dfb602dcea80c3",
+            "description": "Keyword ID, unique for each pair of keyword and location."
           },
           "kw": {
             "type": "string",
-            "example": "seo agency"
+            "example": "seo agency",
+            "description": "Keyword text."
           },
           "lid": {
             "type": "number",
-            "example": 21167
+            "example": 21167,
+            "description": "Location ID of the keyword data, the same as `location._id` in this response. 0 means Anywhere."
           },
           "sv": {
             "nullable": true,
             "type": "number",
-            "example": 930
+            "example": 930,
+            "description": "Average monthly search volume over the last 12 months. For Google Ads data (`svs` 0 or 4) and when `svs` is null, it is calculated from `msv`: only the months of the last 12 calendar months, the current one included, that have at least one search are averaged, so months with 0 searches are left out. The result is rounded down, for example 1,234 to 1,200, and is at least 10. It is null when none of those months has a search, so null also means a keyword with no measurable search volume or one that no source has data for. For `svs` 1, 2 and 3 the value comes from that source."
           },
           "svs": {
+            "nullable": true,
             "type": "number",
-            "example": 0
+            "example": 0,
+            "description": "Source of the search volume: 0 Google AdWords (legacy), 1 third-party import, 2 DataForSEO, 3 set manually, 4 Google Ads API. Null when no source returned the keyword."
           },
           "cpc": {
             "nullable": true,
@@ -7699,12 +7803,14 @@
           "ppc": {
             "nullable": true,
             "type": "number",
-            "example": 15
+            "example": 15,
+            "description": "Competition in pay-per-click advertising, from 0 (lowest) to 100 (highest), or null when unknown."
           },
           "svn": {
             "nullable": true,
             "type": "number",
-            "example": 530
+            "example": 530,
+            "description": "Normalized search volume, a legacy value that usually equals `sv`. Use `sv`; `svn` can be null or missing."
           },
           "msv": {
             "type": "array",
@@ -7715,17 +7821,20 @@
           },
           "ts": {
             "type": "number",
-            "example": 1617710810
+            "example": 1617710810,
+            "description": "Unix timestamp (seconds) of the last update of the keyword data."
           },
           "seo": {
             "type": "number",
             "example": null,
-            "nullable": true
+            "nullable": true,
+            "description": "Keyword difficulty from 1 to 100, as last calculated from the first results page (`page` 0) of a SERP lookup for this keyword and location, for example `GET /kwfinder/serps`; a calculation for Anywhere (0) or the United States (2840) sets it for both locations. Null when it has not been calculated yet, and also when it was calculated as 0, in which case `seo_ts` is set."
           },
           "seo_ts": {
             "type": "number",
             "example": null,
-            "nullable": true
+            "nullable": true,
+            "description": "Unix timestamp (seconds) of the last keyword difficulty calculation, or null when it has not been calculated yet."
           }
         }
       },
@@ -9625,6 +9734,10 @@
                 "brand": {
                   "type": "string"
                 },
+                "isCompetitor": {
+                  "type": "boolean",
+                  "description": "True on the rows of a tracked competitor; absent on other rows."
+                },
                 "rank": {
                   "type": "integer"
                 },
@@ -9645,6 +9758,10 @@
               "properties": {
                 "domain": {
                   "type": "string"
+                },
+                "isCompetitor": {
+                  "type": "boolean",
+                  "description": "True when the domain is a tracked competitor's website or one of its subdomains; absent on other rows."
                 },
                 "url": {
                   "type": "string"
@@ -9684,7 +9801,8 @@
           "location_id",
           "language_id",
           "monitoring_state",
-          "dates"
+          "dates",
+          "startedDates"
         ],
         "properties": {
           "_id": {
@@ -9730,6 +9848,18 @@
             "description": "Days (YYYY-MM-DD) that have aggregated results, in no guaranteed order.",
             "example": [
               "2026-09-24"
+            ]
+          },
+          "startedDates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Days (YYYY-MM-DD) a weekly check was started for this monitor, including a check still running or one that failed; `dates` holds only the days with results. Ascending.",
+            "example": [
+              "2026-09-24",
+              "2026-10-01"
             ]
           }
         }
@@ -10897,7 +11027,7 @@
             "properties": {
               "brands": {
                 "type": "array",
-                "description": "Brands ranked by score, the monitored brand included.",
+                "description": "Brands ranked by score: the top 10, then the monitored brand and the tracked competitors ranked below it. A tracked competitor that no answer mentioned on a check on or after it was added comes last, with zero values and rank null.",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -10909,10 +11039,14 @@
                       "type": "boolean",
                       "description": "Whether this row is the monitored brand."
                     },
+                    "isCompetitor": {
+                      "type": "boolean",
+                      "description": "True on the rows of a tracked competitor (`competitors` in the monitor settings); absent on other rows."
+                    },
                     "rank": {
                       "type": "integer",
                       "nullable": true,
-                      "description": "Position in the ranking, or null when the brand dropped out of it."
+                      "description": "Position in the ranking, or null when the brand dropped out of it or is a tracked competitor no answer mentioned."
                     },
                     "avgScore": {
                       "type": "number",
@@ -11079,7 +11213,7 @@
               },
               "domains": {
                 "type": "array",
-                "description": "Cited domains ranked by frequency.",
+                "description": "Cited domains ranked by frequency: the top 10, then the monitored domain and the domains of tracked competitors ranked below it. A tracked competitor website that was not cited on a check on or after it was added comes last, with zero values and rank null.",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -11099,6 +11233,10 @@
                       "type": "boolean",
                       "description": "Whether the domain is the monitored one."
                     },
+                    "isCompetitor": {
+                      "type": "boolean",
+                      "description": "True when the domain is a tracked competitor's website or one of its subdomains; absent on other rows."
+                    },
                     "frequency": {
                       "type": "integer",
                       "description": "How often the domain was cited."
@@ -11106,7 +11244,7 @@
                     "rank": {
                       "type": "integer",
                       "nullable": true,
-                      "description": "Position in the ranking, or null when the domain dropped out of it."
+                      "description": "Position in the ranking, or null when the domain dropped out of it or is a tracked competitor website that was not cited."
                     },
                     "avgScore": {
                       "type": "number",
