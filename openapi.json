@@ -69,6 +69,14 @@
       }
     },
     {
+      "name": "googlesearchconsole",
+      "description": "Google Search Console data of the Google accounts connected to your Mangools account: the verified properties and their Search Analytics rows (clicks, impressions, CTR, position), with the KWFinder search volume added to every query. Connect Google accounts on the Google Search Console page of your Mangools account; one Mangools account can connect several Google accounts, and its team members share them.",
+      "externalDocs": {
+        "description": "Connect Google Search Console",
+        "url": "https://mangools.com/gsc"
+      }
+    },
+    {
       "name": "mangools",
       "description": "Shared Mangools endpoints used across tools (e.g. locations)."
     },
@@ -6300,6 +6308,498 @@
           }
         }
       }
+    },
+    "/mangools/google/search-console/properties": {
+      "get": {
+        "tags": [
+          "googlesearchconsole",
+          "free"
+        ],
+        "operationId": "get-google-search-console-properties",
+        "summary": "List Google Search Console properties",
+        "description": "List the verified Search Console properties of every Google account connected to your Mangools account. Each property appears once, with the connected Google account that has the strongest permission on it (`siteOwner`, then `siteFullUser`, then `siteRestrictedUser`). Properties a Google account has not verified (`siteUnverifiedUser`) are left out, because their data cannot be read.\n\nPass a `property` from this list to `GET /mangools/google/search-console/search-analytics`.\n\nGoogle accounts are connected at https://mangools.com/gsc. Without one the answer is 403 `GscNotConnected`. A connection expires when its access is revoked in Google or it goes unused for 6 months; when every connected Google account has expired, the answer is 403 `GscConnectionExpired`, whose message holds the page where they are reconnected. When some of the connected accounts have expired or Google fails for them, the answer is still 200 and `errors` names each Google account whose properties are missing; when Google fails for all of them, the answer is 424.\n\n### Limits\n\nThe rows come from your own Search Console, so no Mangools lookup quota is used and no keyword lookup is counted. The general burst limit counts the Google Search Console endpoints together for one Mangools account: at most 3 requests, or the higher burst limit of the plan, per window, and the window is 30 seconds for API-key clients, 1 second for the hosted MCP server. A faster request is answered 429 `RateLimit` with `retry_after` set to the window: wait that many seconds, then send the same request again. The gateway rate limit applies as well.",
+        "responses": {
+          "200": {
+            "description": "The verified properties, sorted by name. When some of the connected accounts have expired or Google failed for them, `errors` names them and the list holds the properties of the others.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "properties"
+                  ],
+                  "properties": {
+                    "properties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/GscProperty"
+                      }
+                    },
+                    "errors": {
+                      "type": "array",
+                      "description": "Present only when some of the connected accounts have expired or Google failed for them. The list above is then partial: it leaves out the properties these Google accounts would add.",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "google_email",
+                          "reason"
+                        ],
+                        "properties": {
+                          "google_email": {
+                            "type": "string",
+                            "description": "The connected Google account whose properties are missing."
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why its properties could not be read, in words. An expired connection says so and names the page where it is reconnected."
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "properties": [
+                    {
+                      "property": "https://blog.example.com/",
+                      "permission_level": "siteFullUser",
+                      "google_email": "marketing@example.com"
+                    },
+                    {
+                      "property": "sc-domain:example.com",
+                      "permission_level": "siteOwner",
+                      "google_email": "seo@example.com"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "`GscNotConnected`: no Google Search Console account is connected to this Mangools account (the message holds the connect page). `GscConnectionExpired`: the connection of every connected Google account has expired or its access was revoked in Google (the message holds the page where they are reconnected).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "GscNotConnected": {
+                    "value": {
+                      "error": {
+                        "type": "GscNotConnected",
+                        "message": "Google Search Console is not connected to this Mangools account. Connect a Google account at https://mangools.com/gsc and try again."
+                      }
+                    }
+                  },
+                  "GscConnectionExpired": {
+                    "value": {
+                      "error": {
+                        "type": "GscConnectionExpired",
+                        "message": "The connection to Google Search Console has expired or its access was revoked in Google. Reconnect the Google account at https://mangools.com/gsc and try again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Google Search Console did not answer for the connected accounts. Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "FailedDependencyException",
+                    "message": "Google Search Console did not respond. Try again later."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Either the burst limit of the Google Search Console endpoints was reached for this Mangools account (JSON `RateLimit` with `retry_after` set to the window, 30 seconds for API-key clients, 1 second for the hosted MCP server: wait that many seconds, then send the same request again), or the gateway rate limit was exceeded (HTML page).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "RateLimit",
+                    "message": "Too many requests in short period. Wait retry_after seconds (also sent as the Retry-After header), then send this same request again. Send requests one at a time, not in parallel.",
+                    "retry_after": 30
+                  }
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "description": "HTML error page returned by the gateway."
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/mangools/google/search-console/search-analytics": {
+      "get": {
+        "tags": [
+          "googlesearchconsole",
+          "free"
+        ],
+        "operationId": "get-google-search-console-search-analytics",
+        "summary": "Get Google Search Console performance data",
+        "description": "Get Search Analytics rows (clicks, impressions, CTR, average position) of one Search Console property for a date range, grouped by any of query, page, country, device and date, or by search appearance alone, and filtered as in the Performance report of Search Console: a query or page text, countries, devices, a search appearance and the search type. When the grouping includes `query`, every row also carries the KWFinder `search_volume` of that query for `location_id`. A parameter the endpoint does not know is answered 422 `ValidationError`, so a misspelled filter never returns unfiltered rows.\n\nThe API reads the property through the connected Google account that has access to it; `google_email` in the answer names that account. Take `property` from `GET /mangools/google/search-console/properties`.\n\n`from` and `to` are Search Console days, which run in Pacific time, and the API checks them against today in Pacific time. Search Console keeps 16 months of data and returns finalized data only, so the last two or three days are usually empty. Rows are paginated: raise `start_row` by `row_limit` until a page returns fewer rows than `row_limit`.\n\nWithout a connected Google account the answer is 403 `GscNotConnected`; when every connected Google account has expired (its access was revoked in Google or it went unused for 6 months), 403 `GscConnectionExpired` with the page where it is reconnected; for a property no connected account can read, 403 `GscPropertyNotAccessible`.\n\n### Limits\n\nThe rows come from your own Search Console, so no Mangools lookup quota is used and no keyword lookup is counted. The general burst limit counts the Google Search Console endpoints together for one Mangools account: at most 3 requests, or the higher burst limit of the plan, per window, and the window is 30 seconds for API-key clients, 1 second for the hosted MCP server. A faster request is answered 429 `RateLimit` with `retry_after` set to the window: wait that many seconds, then send the same request again. The gateway rate limit applies as well.",
+        "parameters": [
+          {
+            "name": "property",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "sc-domain:example.com",
+            "description": "The Search Console property exactly as `GET /mangools/google/search-console/properties` returns it: `sc-domain:example.com` for a domain property, `https://www.example.com/` for a URL-prefix property."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-10-01",
+            "description": "First day of the range, `YYYY-MM-DD`, a Search Console day in Pacific time. Search Console keeps 16 months, so the earliest accepted day is 16 months before today in Pacific time."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-10-31",
+            "description": "Last day of the range, `YYYY-MM-DD`, a Search Console day in Pacific time, on or after `from` and not after today in Pacific time."
+          },
+          {
+            "name": "dimensions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "query"
+            },
+            "example": "query,country",
+            "description": "How rows are grouped: a comma-separated list of `query`, `page`, `country`, `device`, `search_appearance` and `date`, each at most once, for example `query,country` for one row per query and country. `search_appearance` goes alone: Google does not group it with another dimension, and such a list is answered 422 `InvalidInput`; to split one search appearance by query or page, filter by `search_appearance` instead. Each row carries the key of every dimension listed. `search_volume` is added only when the grouping includes `query`. Rows come by clicks, highest first; grouped by `date`, oldest day first. Without `dimensions` the rows are grouped by `query`, which the search types `discover` and `google_news` do not have."
+          },
+          {
+            "name": "search_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "web",
+                "image",
+                "video",
+                "news",
+                "discover",
+                "google_news",
+                "web_multimodal"
+              ],
+              "default": "web"
+            },
+            "description": "Which Google results the data comes from, the search type of Search Console: `web` (the default, the All tab of Google Search), `image`, `video`, `news` (the News tab), `discover`, `google_news` (news.google.com and the Google News app) or `web_multimodal` (Google Lens and Circle to Search). `discover` and `google_news` have no search queries and no position: group them by `page`, `country`, `search_appearance` or `date` (`google_news` also by `device`) and leave out the `query` filter, otherwise the answer is 422 `ValidationError`."
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "example": "keyword research",
+            "description": "Keep only rows whose search query matches this text, matched as `query_match` says."
+          },
+          {
+            "name": "query_match",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "contains",
+                "not_contains",
+                "equals",
+                "not_equals",
+                "regex",
+                "not_regex"
+              ],
+              "default": "contains"
+            },
+            "description": "How `query` is matched: `contains` (the default; not case-sensitive), `not_contains`, `equals` (exact and case-sensitive), `not_equals`, `regex` or `not_regex` (an RE2 regular expression, as Search Console takes it). Only with `query`."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "example": "/blog/",
+            "description": "Keep only rows whose page URL matches this text, matched as `page_match` says."
+          },
+          {
+            "name": "page_match",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "contains",
+                "not_contains",
+                "equals",
+                "not_equals",
+                "regex",
+                "not_regex"
+              ],
+              "default": "contains"
+            },
+            "description": "How `page` is matched: `contains` (the default; not case-sensitive), `not_contains`, `equals` (exact and case-sensitive), `not_equals`, `regex` or `not_regex` (an RE2 regular expression, as Search Console takes it). Only with `page`."
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "usa",
+            "description": "Keep only searches from these countries: a comma-separated list of ISO 3166-1 codes, alpha-3 as Search Console writes them (`usa`, `deu`) or alpha-2 (`us`, `de`), in any case. A row of any of the countries matches. Rows grouped by `country` carry the lowercase alpha-3 code."
+          },
+          {
+            "name": "device",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "mobile",
+            "description": "Keep only searches from these devices: a comma-separated list of `desktop`, `mobile` and `tablet`. A row of any of them matches."
+          },
+          {
+            "name": "search_appearance",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]{1,100}$"
+            },
+            "example": "REVIEW_SNIPPET",
+            "description": "Keep only results with this search appearance, as Search Console names it, for example `REVIEW_SNIPPET` or `VIDEO`. As a filter it works with any `dimensions`; group by `search_appearance` alone to see the values the property has."
+          },
+          {
+            "name": "row_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25000,
+              "default": 1000
+            },
+            "description": "Rows per page, 1 to 25000. A page of 10000 to 25000 rows can take 15 to 45 seconds, so ask only for the rows you need and read the next page with `start_row`."
+          },
+          {
+            "name": "start_row",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Zero-based index of the first row of the page."
+          },
+          {
+            "name": "location_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Location of the KWFinder search volume added to query rows, as an ID from `GET /mangools/locations`. `0` (the default) is Anywhere. The volume comes from data KWFinder already holds and costs no keyword lookup."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of Search Analytics rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GscSearchAnalytics"
+                },
+                "example": {
+                  "property": "sc-domain:example.com",
+                  "google_email": "seo@example.com",
+                  "from": "2026-10-01",
+                  "to": "2026-10-31",
+                  "search_type": "web",
+                  "dimensions": [
+                    "query"
+                  ],
+                  "filters": {
+                    "country": [
+                      "usa"
+                    ]
+                  },
+                  "start_row": 0,
+                  "row_limit": 1000,
+                  "rows": [
+                    {
+                      "query": "keyword research tool",
+                      "clicks": 42,
+                      "impressions": 1300,
+                      "ctr": 0.032,
+                      "position": 8.4,
+                      "search_volume": 2400
+                    },
+                    {
+                      "query": "example seo audit",
+                      "clicks": 3,
+                      "impressions": 120,
+                      "ctr": 0.025,
+                      "position": 14.2,
+                      "search_volume": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "`GscNotConnected`: no Google Search Console account is connected (the message holds the connect page). `GscConnectionExpired`: the connection of every connected Google account has expired or its access was revoked in Google (the message holds the page where they are reconnected). `GscPropertyNotAccessible`: no connected Google account can read the property; when the connection of some Google account has expired, the message says so and holds the page where it is reconnected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "GscNotConnected": {
+                    "value": {
+                      "error": {
+                        "type": "GscNotConnected",
+                        "message": "Google Search Console is not connected to this Mangools account. Connect a Google account at https://mangools.com/gsc and try again."
+                      }
+                    }
+                  },
+                  "GscConnectionExpired": {
+                    "value": {
+                      "error": {
+                        "type": "GscConnectionExpired",
+                        "message": "The connection to Google Search Console has expired or its access was revoked in Google. Reconnect the Google account at https://mangools.com/gsc and try again."
+                      }
+                    }
+                  },
+                  "GscPropertyNotAccessible": {
+                    "value": {
+                      "error": {
+                        "type": "GscPropertyNotAccessible",
+                        "message": "None of the Google accounts connected to this Mangools account can read the property \"https://www.example.com/\". Use GET /v3/mangools/google/search-console/properties to list the accessible properties, or connect the Google account that has access at https://mangools.com/gsc."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "424": {
+            "description": "Google Search Console did not answer for the connected accounts. Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "type": "FailedDependencyException",
+                    "message": "Google Search Console did not respond. Try again later."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "One of three cases. The burst limit of the Google Search Console endpoints was reached for this Mangools account (JSON `RateLimit` with `retry_after` set to the window, 30 seconds for API-key clients, 1 second for the hosted MCP server), or the Search Console quota of the property is spent for now (JSON `RateLimit` with `retry_after` 60); in both, wait `retry_after` seconds, then send the same request again. Or the gateway rate limit was exceeded (HTML page).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "burstLimit": {
+                    "summary": "The burst limit of the account, for an API-key client",
+                    "value": {
+                      "error": {
+                        "type": "RateLimit",
+                        "message": "Too many requests in short period. Wait retry_after seconds (also sent as the Retry-After header), then send this same request again. Send requests one at a time, not in parallel.",
+                        "retry_after": 30
+                      }
+                    }
+                  },
+                  "searchConsoleQuota": {
+                    "summary": "The Search Console quota of the property is spent",
+                    "value": {
+                      "error": {
+                        "type": "RateLimit",
+                        "message": "Google Search Console quota for this property is spent for now. Wait retry_after seconds, then send this same request again.",
+                        "retry_after": 60
+                      }
+                    }
+                  }
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "description": "HTML error page returned by the gateway."
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -6320,7 +6820,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "description": "Error class name. Values include: AuthError (401), ValidationError, InvalidInput and OutOfLimitException (422), MajesticError (423 or 424), FailedDependencyException (424, or 500 with retry_after when SERP data is temporarily unavailable), CreditLimit (429, credits or quota spent), RateLimit (429, too many requests: the keyword-import cooldown, the short-period burst limit or a temporary limit on backlink exports; a few endpoints also answer RateLimit when a precondition is not met, for example SiteProfiler's \"Not in history\", and waiting does not clear it), ParserException (500) and Error (for example 404 Not Found). Unexpected failures can carry other class names; treat any 5xx answer as a server error.",
+                "description": "Error class name. Values include: AuthError (401), ValidationError and InvalidInput (422), OutOfLimitException (422, a limit of the plan or the account, for example 25 Google accounts connected to one account, the most it can have; the Google sign-in window of the connect page shows it), MajesticError (423 or 424), FailedDependencyException (424, or 500 with retry_after when SERP data is temporarily unavailable), GscNotConnected (403, no Google Search Console account is connected; the message holds the connect page), GscConnectionExpired (403, the connection of every connected Google account has expired or its access was revoked in Google; the message names them and holds the page where they are reconnected), GscPropertyNotAccessible (403, no connected Google account can read the property), CreditLimit (429, credits or quota spent), RateLimit (429, too many requests: the keyword-import cooldown, the short-period burst limit or a temporary limit on backlink exports; a few endpoints also answer RateLimit when a precondition is not met, for example SiteProfiler's \"Not in history\", and waiting does not clear it), ParserException (500), Exception (404, a Search Console connection that does not belong to the account) and Error (for example 404 Not Found). Unexpected failures can carry other class names; treat any 5xx answer as a server error.",
                 "example": "Error"
               },
               "message": {
@@ -11661,6 +12161,275 @@
             "minimum": 0,
             "maximum": 5,
             "description": "Regenerations used (`mode` `regenerate` of `POST /aiwatcher/brand-profile/build`), at most 5. The server keeps the count: `PUT /aiwatcher/monitor/{id}/brand-profile` ignores this value and `POST /aiwatcher/monitor` caps it at 5."
+          }
+        }
+      },
+      "GscProperty": {
+        "type": "object",
+        "description": "A verified Search Console property and the connected Google account it is read through.",
+        "required": [
+          "property",
+          "permission_level",
+          "google_email"
+        ],
+        "properties": {
+          "property": {
+            "type": "string",
+            "description": "The property as Search Console names it: `sc-domain:example.com` for a domain property, `https://www.example.com/` for a URL-prefix property. Pass it unchanged as `property` to the Search Analytics endpoint.",
+            "example": "sc-domain:example.com"
+          },
+          "permission_level": {
+            "type": "string",
+            "enum": [
+              "siteOwner",
+              "siteFullUser",
+              "siteRestrictedUser"
+            ],
+            "description": "The Google account's permission on the property.",
+            "example": "siteOwner"
+          },
+          "google_email": {
+            "type": "string",
+            "description": "Email of the connected Google account the property is read through.",
+            "example": "seo@example.com"
+          }
+        }
+      },
+      "GscSearchAnalyticsRow": {
+        "type": "object",
+        "description": "One Search Analytics row. Its dimension keys (`query`, `page`, `country`, `device`, `search_appearance`, `date`) are present according to `dimensions`.",
+        "required": [
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query. Present when `dimensions` includes `query`.",
+            "example": "keyword research tool"
+          },
+          "page": {
+            "type": "string",
+            "description": "URL of the page shown in the results. Present when `dimensions` includes `page`.",
+            "example": "https://www.example.com/tools"
+          },
+          "country": {
+            "type": "string",
+            "description": "Country of the search as Search Console names it, a lowercase ISO 3166-1 alpha-3 code (`zzz` when unknown); the `country` filter takes it back. Present when `dimensions` includes `country`.",
+            "example": "usa"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "desktop",
+              "mobile",
+              "tablet"
+            ],
+            "description": "Device of the search. Present when `dimensions` includes `device`.",
+            "example": "mobile"
+          },
+          "search_appearance": {
+            "type": "string",
+            "description": "Search appearance of the result as Search Console names it, for example `REVIEW_SNIPPET` or `VIDEO`. Present when `dimensions` includes `search_appearance`.",
+            "example": "REVIEW_SNIPPET"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Search Console day, in Pacific time. Present when `dimensions` includes `date`.",
+            "example": "2026-10-01"
+          },
+          "clicks": {
+            "type": "number",
+            "description": "Clicks from Google Search in the date range.",
+            "example": 42
+          },
+          "impressions": {
+            "type": "number",
+            "description": "Impressions in Google Search in the date range.",
+            "example": 1300
+          },
+          "ctr": {
+            "type": "number",
+            "description": "Click-through rate as a fraction (0.032 is 3.2 %).",
+            "example": 0.032
+          },
+          "position": {
+            "type": "number",
+            "description": "Average position in Google Search.",
+            "example": 8.4
+          },
+          "search_volume": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Monthly search volume of the query from KWFinder for `location_id`, or null when KWFinder has no volume for it. Present only when `dimensions` includes `query`.",
+            "example": 2400
+          }
+        }
+      },
+      "GscSearchAnalytics": {
+        "type": "object",
+        "required": [
+          "property",
+          "google_email",
+          "from",
+          "to",
+          "search_type",
+          "dimensions",
+          "filters",
+          "start_row",
+          "row_limit",
+          "rows"
+        ],
+        "properties": {
+          "property": {
+            "type": "string",
+            "description": "The property the rows belong to.",
+            "example": "sc-domain:example.com"
+          },
+          "google_email": {
+            "type": "string",
+            "description": "The connected Google account the rows were read through.",
+            "example": "seo@example.com"
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-01"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-31"
+          },
+          "search_type": {
+            "type": "string",
+            "enum": [
+              "web",
+              "image",
+              "video",
+              "news",
+              "discover",
+              "google_news",
+              "web_multimodal"
+            ],
+            "description": "The search type the rows come from.",
+            "example": "web"
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "query",
+                "page",
+                "country",
+                "device",
+                "search_appearance",
+                "date"
+              ]
+            },
+            "description": "How the rows are grouped, in the order of the keys.",
+            "example": [
+              "query"
+            ]
+          },
+          "filters": {
+            "type": "object",
+            "description": "The filters the rows were read with, as the API applied them: country codes in alpha-3, values deduplicated. Empty without a filter.",
+            "properties": {
+              "query": {
+                "type": "object",
+                "required": [
+                  "match",
+                  "value"
+                ],
+                "properties": {
+                  "match": {
+                    "type": "string",
+                    "enum": [
+                      "contains",
+                      "not_contains",
+                      "equals",
+                      "not_equals",
+                      "regex",
+                      "not_regex"
+                    ]
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "description": "The search query filter: `value` and how it is matched."
+              },
+              "page": {
+                "type": "object",
+                "required": [
+                  "match",
+                  "value"
+                ],
+                "properties": {
+                  "match": {
+                    "type": "string",
+                    "enum": [
+                      "contains",
+                      "not_contains",
+                      "equals",
+                      "not_equals",
+                      "regex",
+                      "not_regex"
+                    ]
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "description": "The page URL filter: `value` and how it is matched."
+              },
+              "country": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Lowercase ISO 3166-1 alpha-3 codes; a row of any of them matches."
+              },
+              "device": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "desktop",
+                    "mobile",
+                    "tablet"
+                  ]
+                },
+                "description": "A row of any of these devices matches."
+              },
+              "search_appearance": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "country": [
+                "usa"
+              ]
+            }
+          },
+          "start_row": {
+            "type": "integer",
+            "example": 0
+          },
+          "row_limit": {
+            "type": "integer",
+            "example": 1000
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GscSearchAnalyticsRow"
+            }
           }
         }
       }
